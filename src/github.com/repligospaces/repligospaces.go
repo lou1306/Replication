@@ -42,8 +42,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
     return CreateTuple(t1)
 }
 
-// Not tested
-
+//~~~~~~~~ NOT TESTED
 // Query a specific space for tuples matching the given pattern
 // Blocks if the tuple is not found
 /*
