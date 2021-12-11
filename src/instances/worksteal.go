@@ -10,7 +10,7 @@ import (
 )
 
 // Number of requests that will be generated
-const REQUESTS = 1000
+const REQUESTS = 500
 // Number of servers
 const SERVERS = 3
 
@@ -24,7 +24,7 @@ const UPPER_THRESHOLD = 4
 const debug = true
 
 // Probability with which a server accepts a request
-// (Deque bias is 1-ENQUEUE_BIAS)
+// (Deque bias is 1-P_ACCEPT)
 const P_ACCEPT = 0.80
 
 var l sync.Mutex
@@ -56,8 +56,8 @@ func main() {
 
 	wg.Wait()
 	fmt.Println("Stop")
-	log("%d requests (total).", REQUESTS)
-	log("%d requests processed locally.", REQUESTS-(FORWARDED_REQUESTS+STOLEN_REQUESTS))
+	log("%d requests completed (out of %d).", COMPLETED_REQUESTS, REQUESTS)
+	log("%d requests were local.", COMPLETED_REQUESTS-(FORWARDED_REQUESTS+STOLEN_REQUESTS))
 	log("%d requests forwarded.", FORWARDED_REQUESTS)
 	log("%d requests stolen.", STOLEN_REQUESTS)
 }
@@ -100,11 +100,15 @@ func P2() {
 	var wasBusyBefore bool
 	var isBusyNow bool
 
-	for COMPLETED_REQUESTS < REQUESTS {
+	steps := 0
+	// The (steps < 10*REQUESTS) condition is just in case we
+	// drop requests in the replicated case
+	for COMPLETED_REQUESTS < REQUESTS && (steps < 10*REQUESTS) {
+		steps += 1
 		l.Lock()
 		service = -1
 		wasBusyBefore = isBusyNow
-r
+
 		if load < UPPER_THRESHOLD && biasedRandBool(P_ACCEPT) {
 			s2.GetP(2, &service)
 			if service == tid {
@@ -191,7 +195,11 @@ func P3() {
 	var wasBusyBefore bool
 	var isBusyNow bool
 
-	for COMPLETED_REQUESTS < REQUESTS {
+	steps := 0
+	// The (steps < 10*REQUESTS) condition is just in case we
+	// drop requests in the replicated case
+	for COMPLETED_REQUESTS < REQUESTS && (steps < 10*REQUESTS) {
+		steps += 1
 		l.Lock()
 		service = -1
 		wasBusyBefore = isBusyNow
@@ -274,7 +282,11 @@ func P4() {
 	var wasBusyBefore bool
 	var isBusyNow bool
 
-	for COMPLETED_REQUESTS < REQUESTS {
+	steps := 0
+	// The (steps < 10*REQUESTS) condition is just in case we
+	// drop requests in the replicated case
+	for COMPLETED_REQUESTS < REQUESTS && (steps < 10*REQUESTS) {
+		steps += 1
 		l.Lock()
 		service = -1
 		wasBusyBefore = isBusyNow
