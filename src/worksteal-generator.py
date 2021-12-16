@@ -334,7 +334,6 @@ def execute_test_cases(filenames,times):
 	first = True
 
 	inf = float("inf")
-	# ['all', 'completed', 'local', 'forwarded', 'stolen', 'minTime', 'maxTime', 'avgTime']
 
 	avg = []
 	low = []
@@ -406,7 +405,7 @@ def main(args):
 	global inputfiles1, inputfiles2
 
 	test_cases_per_configuration = 1
-	simulations_per_test_case = 5
+	simulations_per_test_case = 10
 
 	#n = no. of processes (must match the template for now)
     #m = overall memory size (must be a multiple of n)
@@ -466,12 +465,14 @@ def main(args):
 		for b in range(0,test_cases_per_configuration):
 			generate_test_case(S[a],B[a],U[a],P[a])
 
+		header = "reqs:    total,  handled,    local,    fwded,   stolen|time: min,      max,      avg"
+			
 		print('  Without replication:')
-		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r')
+		print(header)
 		execute_test_cases(inputfiles1,simulations_per_test_case)
 
-		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r')
 		print('  With replication:')
+		print(header)
 		execute_test_cases(inputfiles2,simulations_per_test_case)
 
 
