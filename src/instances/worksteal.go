@@ -14,7 +14,6 @@ import (
 const REQUESTS = 500
 // Number of servers
 const SERVERS = 3
-
 // Load of an individual request
 const REQ_LOAD = 1
 // Server declares to be "busy" when its load hits this threshold
@@ -40,9 +39,12 @@ var s4 Space
 var FORWARDED_REQUESTS int = 0
 var STOLEN_REQUESTS int = 0
 var COMPLETED_REQUESTS int = 0
-// Logical timestamp to measure request completion time
+// Logical timestamp to measure request acceptance time
 var TIME int64 = 0
-
+// Statistics about acceptance time
+var totalTime int64 = 0
+var minTime int64 = math.MaxInt64
+var maxTime int64 = 0
 
 func main() {
     // n servers + 1 request generator
@@ -61,11 +63,16 @@ func main() {
 
     wg.Wait()
     fmt.Println("Stop")
-    fmt.Fprintf(os.Stdout, "%d requests completed (out of %d).\n", COMPLETED_REQUESTS, REQUESTS)
-    fmt.Fprintf(os.Stdout, "%d requests were local.\n", COMPLETED_REQUESTS-STOLEN_REQUESTS)
-    fmt.Fprintf(os.Stdout, "%d requests forwarded.\n", FORWARDED_REQUESTS)
-    fmt.Fprintf(os.Stdout, "%d requests stolen.\n", STOLEN_REQUESTS)
-    fmt.Fprintf(os.Stdout, "Time: min %d steps\tmax %d steps\tavg %f steps.\n", minTime, maxTime, float64(totalTime)/float64(COMPLETED_REQUESTS))
+    fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime")
+    fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f",
+        REQUESTS,
+        COMPLETED_REQUESTS,
+        COMPLETED_REQUESTS-STOLEN_REQUESTS,
+        FORWARDED_REQUESTS,
+        STOLEN_REQUESTS,
+        minTime,
+        maxTime,
+        float64(totalTime)/float64(COMPLETED_REQUESTS))
 
 }
 
@@ -431,10 +438,6 @@ func log(format string, a ...interface{}) {
         fmt.Fprintf(os.Stdout, format+"\n", a ...)
     }
 }
-
-var totalTime int64 = 0
-var minTime int64 = math.MaxInt64
-var maxTime int64 = 0
 
 func updateTimeStats (newTime int64) {
     totalTime += newTime
