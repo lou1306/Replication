@@ -9,7 +9,7 @@ package repligospaces
 
 // Importing the useful packages
 import (
-	"fmt"
+	// "fmt"
 	"sync"
 	"time"
 	. "github.com/pspaces/gospace"
@@ -294,7 +294,7 @@ func GetP(p Tuple, Sp Replispace, s Space) Tuple {
 
 		// for each space in the set S of space identifiers
 		for s, space := range v {			// remove the tuple from the relevant spaces
-			fmt.Println(">>> evicting", p1, " from ", s)
+			// fmt.Println(">>> evicting", p1, " from ", s)
 			u, e1 := Sp.Sp[v[s]].GetP(p1.Fields...)
 
 			if e1 == nil {
