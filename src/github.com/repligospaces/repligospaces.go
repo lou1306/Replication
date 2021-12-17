@@ -19,12 +19,12 @@ type Replispace struct {
 	mux sync.Mutex
 	Sp  map[string]*Space
 	// Maximum amount of replicas each space should hold.
-	// A non-positive value *disables* replicace eviction
+	// A non-positive value *disables* replica eviction
 	ReplLimit int
 	// The eviction policy applied by the RepliSpace whenever a space hits
 	// the replica limit. Recognized values are "lru" and "random", and "fifo"; 
 	// other value defaults to "fifo".
-	EvictionPolicy string
+	ReplacementPolicy string
 }
 
 // Tracks the number of replicas in each space
@@ -144,7 +144,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 	// add t' to each space in S
 	for i := 0; i < len(S); i++ {
 		if Sp.ReplLimit > 0 && replicaCount[S[i]]+1 > Sp.ReplLimit {
-			switch Sp.EvictionPolicy {
+			switch Sp.ReplacementPolicy {
 			case "lru":
 				EvictLRU(Sp, S[i])
 			case "random":

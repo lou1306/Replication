@@ -19,12 +19,12 @@ type Reactispace struct {
     mux sync.Mutex
     Sp  map[string]*Space
     // Maximum amount of replicas each space should hold.
-    // A non-positive value *disables* replicace eviction
+    // A non-positive value *disables* replica eviction
     ReplLimit int
     // The eviction policy applied by the Reactispace whenever a space hits
     // the replica limit. Recognized values are "lru" and "random", and "fifo"; 
     // other value defaults to "fifo".
-    EvictionPolicy string
+    ReplacementPolicy string
 }
 
 // Tracks the number of replicas in each space
@@ -144,7 +144,7 @@ func Put(t Tuple, Sp Reactispace, S []string) Tuple {
     // add t' to the FIRST space in S
     if len(S) > 0 {
         if Sp.ReplLimit > 0 && replicaCount[S[0]]+1 > Sp.ReplLimit {
-            switch Sp.EvictionPolicy {
+            switch Sp.ReplacementPolicy {
             case "lru":
                 EvictLRU(Sp, S[0])
             case "random":
@@ -178,7 +178,7 @@ func rawPutReplica(t Tuple, Sp Reactispace, replSpace string) {
     // Warning: only call from within a function that has locked 
     // the Sp.mux mutex!
     if Sp.ReplLimit > 0 && replicaCount[replSpace]+1 > Sp.ReplLimit {
-        switch Sp.EvictionPolicy {
+        switch Sp.ReplacementPolicy {
         case "lru":
             EvictLRU(Sp, replSpace)
         case "random":
