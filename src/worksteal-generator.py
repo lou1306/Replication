@@ -53,16 +53,20 @@ import (
     . "github.com/pspaces/gospace"
 )
 
-// Number of requests that will be generated
-const REQUESTS = {100*SERVERS}
-// Number of servers
+const REQUESTS = {100*SERVERS} 
 const SERVERS = {SERVERS}
-// Load of an individual request
-const REQ_LOAD = 1
-// Server declares to be "busy" when its load hits this threshold
-const BUSY_THRESHOLD = {BUSY_THRESHOLD}
-// Server stops queueing requests when its load hits this threshold
+const REQ_LOAD = 1 
+const BUSY_THRESHOLD = {BUSY_THRESHOLD} 
 const UPPER_THRESHOLD = {UPPER_THRESHOLD}
+
+
+/************
+REQUESTS = Number of requests that will be generated
+SERVERS = Number of servers
+REQ_LOAD = Load of an individual request
+BUSY_THRESHOLD = Server declares to be "busy" when its load hits this threshold
+UPPER_THRESHOLD = Server stops queueing requests when its load hits this threshold
+**************/
 
 const debug = false
 
@@ -97,7 +101,7 @@ func main() {{
     wg.Wait()
     fmt.Println("Stop")
     fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime")
-	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f",
+	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f\\n",
 		REQUESTS,
 		COMPLETED_REQUESTS,
 		COMPLETED_REQUESTS-STOLEN_REQUESTS,
@@ -284,14 +288,9 @@ func P{i}() {{
 # 	print(generate_footer())
 
 
-def generate_test_case(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT):
+def generate_test_case(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT, REPLLIMIT, POLICY):
 	global counter
-	# We force upper threshold to be 150% of busy threshold
-	# I.e. busy threshold is 75% of upper threshold, when b
 	
-	# random.seed(datetime.datetime.now())
-
-
 	output = (
 		generate_header(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT) +
 		generate_P1(SERVERS) +
@@ -300,27 +299,25 @@ def generate_test_case(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT):
 
 
 	# # Save the test case (GoSpace version)
-	# c1 = str(counter).zfill(3)
-	# s1 = str(S).zfill(1)
-	# m1 = str(m).zfill(2)
-	# o1 = str(o).zfill(3)
-	# p1 = str(p).zfill(3)
 
-
-	filename = f"ws/test{counter}_N{SERVERS}_Tb{BUSY_THRESHOLD}_Tu{UPPER_THRESHOLD}_Pa{P_ACCEPT}.go"
+	filename = f"ws/test{counter}_N{SERVERS}_Tb{BUSY_THRESHOLD}_Tu{UPPER_THRESHOLD}_Pa{int(P_ACCEPT*100)}_R{REPLLIMIT}_RP{POLICY}.go"
 	filename2 = filename.replace("/test", "/r_test")
 
 	with open(filename, 'w') as outputfile:
 		outputfile.write(output)
 
 	# Generate the replicated version of the test case
-	# cmd = 'go run *.go --quiet -i %s' % (filename)
-	cmd = 'go run *.go -quiet -i %s' % (filename)
+	cmd = f'go run *.go -quiet -i {filename}'
+	output = check_output(cmd, env=os.environ, shell=True).decode()
+
 
 	# TODO change memlimit, replacement policy, or replication scheme
 
-	output = check_output(cmd, env=os.environ, shell=True).decode()
-	# os.popen(cmd).read()
+	if REPLLIMIT > 0:
+		output = output.replace(
+			"Replispace{Sp: Sp}",
+			f'Replispace{{Sp: Sp, ReplLimit: {REPLLIMIT}, ReplacementPolicy: "{POLICY}"}}'
+		)
 
 	with open(filename2, 'w') as outputfile:
 		outputfile.write(output)
@@ -405,28 +402,29 @@ def main(args):
 	global inputfiles1, inputfiles2
 
 	test_cases_per_configuration = 1
-	simulations_per_test_case = 10
+	simulations_per_test_case = 100
 
-	#n = no. of processes (must match the template for now)
-    #m = overall memory size (must be a multiple of n)
-    #o = no. of operations per process
-    #p = (expected) percentace of Put operations (as opposite to QueryP)
+	# S =	no. of servers 
+	# 		(keep in mind the total no. of processes will be S+1, 
+	# 		namely the request generator)
+    # B = 	Busy threshold
+    # P = 	probability of accepting a request vs. handling an accepted request
+    # U = 	Upper threshold (load at which the peer stops accepting requests)
+    #		Here, we fix it to 150% of the busy threshold
 
-    # Test 1:
-    #
-    #     +/- read/write ratio
-    #
-	# n = [ 4,  4,  4,  4,  4,  4,  4,  4,  4]
-	# m = [32, 32, 32, 32, 32, 32, 32, 32, 32]
-	# o = [32, 32, 32, 32, 32, 32, 32, 32, 32]
-	# p = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+    # ONLY USED IN THE REPLICATED PROGRAM:
+    # R =	Replica limit (0 means no limit)
+    # RP = 	Replacement policy ("fifo", "lru", or "random")
 
 
 
+    # Test 1: Increasing busy threshold (no memory limit)
 	S =		[  3, 	3, 	 3,   3]
 	B = 	[  2, 	4,   6,   8]
 	P =		[0.8, 0.8, 0.8, 0.8]
 
+	R = 	[0] * len(S)
+	RP = 	["fifo"] * len(S)
 	U	= 	[int(1.5*Tb) for Tb in B]
 
 	# Test 2:
@@ -456,14 +454,10 @@ def main(args):
 	print('')
 
 	for a in range(0,len(S)):
-		s1 = str(S[a]).zfill(1)
-		b1 = str(B[a]).zfill(2)
-		p1 = str(P[a]).zfill(3)
-		u1 = str(U[a]).zfill(3)
 
-		print('Configuration no. %d (N=%s Tb=%s Tu=%s Pa=%s)' %(a+1,s1,b1,u1,p1))
+		print(f"Configuration no. {a+1} (N={S[a]:01} Tb={B[a]:02} Tu={U[a]:03} Pa={int(P[a]*100):02}% R={R[a]:02} RP={RP[a]})")
 		for b in range(0,test_cases_per_configuration):
-			generate_test_case(S[a],B[a],U[a],P[a])
+			generate_test_case(S[a],B[a],U[a],P[a],R[a],RP[a])
 
 		header = "reqs:    total,  handled,    local,    fwded,   stolen|time: min,      max,      avg"
 			
