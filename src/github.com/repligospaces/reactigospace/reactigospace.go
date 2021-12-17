@@ -363,7 +363,7 @@ func Getwcount() int {
     return wcnt
 }
 
-func GetReplicaTotal() int {
+func GetReplicaCount() int {
     return copiedTuples
 }
 

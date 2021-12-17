@@ -28,7 +28,7 @@ type Replispace struct {
 }
 
 // Tracks the number of replicas in each space
-var replicaCount map[string]int = make(map[string]int)
+var replicaCounter map[string]int = make(map[string]int)
 // Maps a pair (space, tuple) to its creation time
 var createTime map[Space]map[string]TimeRecord = make(map[Space]map[string]TimeRecord)
 // Maps a pair (space, tuple) to its last access time
@@ -94,7 +94,7 @@ func evict(Sp Replispace, s string, t Tuple) {
 	// Remove timestamps associated to tuple t
 	delete(createTime[*Sp.Sp[s]], t.String())
 	delete(lastAccessTime[*Sp.Sp[s]], t.String())
-	replicaCount[s] -= len(y)
+	replicaCounter[s] -= len(y)
 	evictionCount += len(y)
 }
 
@@ -143,7 +143,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 
 	// add t' to each space in S
 	for i := 0; i < len(S); i++ {
-		if Sp.ReplLimit > 0 && replicaCount[S[i]]+1 > Sp.ReplLimit {
+		if Sp.ReplLimit > 0 && replicaCounter[S[i]]+1 > Sp.ReplLimit {
 			switch Sp.ReplacementPolicy {
 			case "lru":
 				EvictLRU(Sp, S[i])
@@ -157,7 +157,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 		}
 		Sp.Sp[S[i]].Put(t1.Fields...)
 		wcnt+=1
-		replicaCount[S[i]] += 1
+		replicaCounter[S[i]] += 1
 		if createTime[*Sp.Sp[S[i]]] == nil {
 			createTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
@@ -298,7 +298,7 @@ func GetP(p Tuple, Sp Replispace, s Space) Tuple {
 			u, e1 := Sp.Sp[v[s]].GetP(p1.Fields...)
 
 			if e1 == nil {
-				replicaCount[v[s]] -= 1
+				replicaCounter[v[s]] -= 1
 				delete(createTime[*Sp.Sp[space]], u.String())
 				delete(lastAccessTime[*Sp.Sp[space]], u.String())
 
@@ -325,9 +325,9 @@ func GetEvictionCount() int {
 	return evictionCount
 }
 
-func GetReplicaTotal() int {
+func GetReplicaCount() int {
 	result := 0
-	for _, v := range replicaCount {
+	for _, v := range replicaCounter {
 		result += v
 	}
 	return result
