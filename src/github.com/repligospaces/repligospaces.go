@@ -156,7 +156,8 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 		}
 		Sp.Sp[S[i]].Put(t1.Fields...)
 		wcnt+=1
-		replicaCounter[S[i]] += 1
+		// fmt.Println(">>>", replicaCounter[S[i]])
+		replicaCounter[S[i]] += 1	
 		if createTime[*Sp.Sp[S[i]]] == nil {
 			createTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
@@ -164,7 +165,6 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 			lastAccessTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
 
-		// fmt.Println(">>> adding", now, " to ", S[i])
 		createTime[*Sp.Sp[S[i]]][t.String()] = now
 		lastAccessTime[*Sp.Sp[S[i]]][t.String()] = now
 	}
@@ -232,35 +232,6 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	Sp.mux.Unlock()
 	return CreateTuple()   // returns an empty tuple when no tuple is available
 }
-
-// func EverywhereQueryP(p Tuple, Sp Replispace) Tuple {
-// 	Sp.mux.Lock()
-
-// 	// create template p' = {t,S}
-// 	// var createTime int64 // <--- extra field to match the creation time
-// 	var y []string // <--- extra field to match the space list S
-// 	var data []interface{}
-// 	data = append(data, p.Fields...)
-// 	// data = append(data, &createTime)
-// 	data = append(data, &y)
-// 	var p1 Tuple = CreateTuple(data...)
-
-// 	for _, s in range Sp.Sp {
-// 		// query a tuple via a pattern matching from a specific space
-// 		t1, e := s.QueryP(p1.Fields...)
-// 		if e == nil {
-// 			// no error: return the matching tuple without the last field
-// 			var u = CreateTuple(dataFieldsOf(t1)...)
-// 			lastAccessTime[u.String()] = TimeRecord{tuple:u, time:time.Now(), spaces: y}
-
-// 			Sp.mux.Unlock()
-// 			return u
-// 		}
-// 	}
-
-// 	Sp.mux.Unlock()
-// 	return CreateTuple()   // returns an empty tuple when no tuple is available
-// }
 
 //~~~~~~~~
 // Remove a tuple from space s, and
