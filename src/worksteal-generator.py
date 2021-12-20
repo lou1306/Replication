@@ -40,6 +40,7 @@ def generate_header(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT):
 	new_spaces = "\n    ".join(f's{i} = NewSpace("tcp://localhost:{START_PORT+i}/s{i}")' for i in range(1, SERVERS+2)) 
 	go_peers = "\n    ".join(f"go P{i}()" for i in range(2, SERVERS+2))
 
+
 	return f"""
 package main
 
@@ -100,8 +101,8 @@ func main() {{
 
     wg.Wait()
     fmt.Println("Stop")
-    fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime")
-	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f\\n",
+	fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime,replicas,evictions")
+	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f,%d,%d\\n",
 		REQUESTS,
 		COMPLETED_REQUESTS,
 		COMPLETED_REQUESTS-STOLEN_REQUESTS,
@@ -109,7 +110,8 @@ func main() {{
 		STOLEN_REQUESTS,
 		minTime,
 		maxTime,
-		float64(totalTime)/float64(COMPLETED_REQUESTS))
+		float64(totalTime)/float64(COMPLETED_REQUESTS),
+		-1, -1)
 }}
 
 """
@@ -188,7 +190,7 @@ def generate_peer(i, SERVERS):
 	def check_busy(j):
 		return f"""
 			if service == {j} {{
-	            s{j}.QueryP(&s)
+	            s{j}.QueryP({j}, &s)
 	            if s == "busy" {{
 	                updateTimeStats(getTIME() - tstamp)
 	                stolenReq = true
@@ -246,7 +248,7 @@ func P{i}() {{
                 isBusyNow = load >= BUSY_THRESHOLD
                 if isBusyNow && !wasBusyBefore {{
                     // Declare that this server is now busy
-                    s{i}.Put("busy")
+                    s{i}.Put({i}, "busy")
                     log("[%d]\\tnow busy: load %d >= %d",  tid, load, BUSY_THRESHOLD)
                 }}
                 // Update counters
@@ -269,7 +271,7 @@ func P{i}() {{
                 if load < BUSY_THRESHOLD && (load+REQ_LOAD >= BUSY_THRESHOLD) {{
                     // Declare that this server is no longer busy
                     isBusyNow = false
-                    s{i}.GetP("busy")
+                    s{i}.GetP({i}, "busy")
                     log("[%d]\\tno longer busy: load %d < %d",  tid, load, BUSY_THRESHOLD)
                 }}
                 COMPLETED_REQUESTS += 1
@@ -311,7 +313,9 @@ def generate_test_case(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT, REPLL
 	output = check_output(cmd, env=os.environ, shell=True).decode()
 
 
-	# TODO change memlimit, replacement policy, or replication scheme
+	# Add replication metrics (replicas, evictions)
+	output = output.replace("-1, -1)", "Getwcount(), GetEvictionCount())")
+
 
 	if REPLLIMIT > 0:
 		output = output.replace(
@@ -376,7 +380,7 @@ def execute_test_cases(filenames,times):
 	# Generate output values (min,avg,max,total) to print out.
 	values = '  min '
 
-	for i in range(0,len(avg)): values += '%s, ' % '{0: >8}'.format(low[i])
+	for i in range(0,len(avg)): values += '%s, ' % '{0: >8.1f}'.format(low[i])
 
 	values = values[:-2]
 	values += '\n  avg '
@@ -386,23 +390,23 @@ def execute_test_cases(filenames,times):
 	values = values[:-2]
 	values += '\n  max '
 
-	for i in range(0,len(avg)): values += '%s, ' % '{0: >8}'.format(high[i])
+	for i in range(0,len(avg)): values += '%s, ' % '{0: >8.1f}'.format(high[i])
 
 	values = values[:-2]
 	values += '\n  tot '
 
-	for i in range(0,len(avg)): values += '%s, ' % '{0: >8}'.format(total[i])
+	for i in range(0,len(avg)): values += '%s, ' % '{0: >8.1f}'.format(total[i])
 	values = values[:-2]
 
 	print(values)
 	print()
 
 
-def main(args):
+def main(args, test=0):
 	global inputfiles1, inputfiles2
 
 	test_cases_per_configuration = 1
-	simulations_per_test_case = 100
+	simulations_per_test_case = 20
 
 	# S =	no. of servers 
 	# 		(keep in mind the total no. of processes will be S+1, 
@@ -416,34 +420,44 @@ def main(args):
     # R =	Replica limit (0 means no limit)
     # RP = 	Replacement policy ("fifo", "lru", or "random")
 
+    if test == 0:
+	    # Test 1: Increasing busy threshold (no memory limit, fifo policy)
+		S =		[  3, 	3, 	 3,   3]
+		B = 	[  2, 	4,   6,   8]
+		P =		[0.8, 0.8, 0.8, 0.8]
+		R = 	[0] * len(S)
+		RP = 	["fifo"] * len(S)
+		U = 	[int(1.5*Tb) for Tb in B]
+
+	elif test == 1:
+
+		# Test 2: Increasing memory limit, fifo policy
+		S =		[  3, 	3, 	 3,   3]
+		B = 	[  2, 	2,   2,   2]
+		P =		[0.8, 0.8, 0.8, 0.8]
+		R = 	[  1, 	2, 	 4,	  8]
+		RP = 	["fifo"] * len(S)
+		U = 	[int(1.5*Tb) for Tb in B]
+
+	elif test == 2:
+		# Test 3: Increasing memory limit, lru policy
+		S =		[  3, 	3, 	 3,   3]
+		B = 	[  2, 	2,   2,   2]
+		P =		[0.8, 0.8, 0.8, 0.8]
+		R = 	[  1, 	2, 	 4,	  8]
+		RP = 	["lru"] * len(S)
+		U	= 	[int(1.5*Tb) for Tb in B]
+
+	else:
+		# Test 4: Increasing memory limit, random policy
+		S =		[  3, 	3, 	 3,   3]
+		B = 	[  2, 	2,   2,   2]
+		P =		[0.8, 0.8, 0.8, 0.8]
+		R = 	[  1, 	2, 	 4,	  8]
+		RP = 	["random"] * len(S)
+		U	= 	[int(1.5*Tb) for Tb in B]
 
 
-    # Test 1: Increasing busy threshold (no memory limit)
-	S =		[  3, 	3, 	 3,   3]
-	B = 	[  2, 	4,   6,   8]
-	P =		[0.8, 0.8, 0.8, 0.8]
-
-	R = 	[0] * len(S)
-	RP = 	["fifo"] * len(S)
-	U	= 	[int(1.5*Tb) for Tb in B]
-
-	# Test 2:
-	#
-	#     +/- memory intensive
-	#
-	#n = [ 4,  4,  4,  4,  4,  4]
-	#m = [32, 32, 32, 32, 32, 32]
-	#o = [4,  8,  16, 32, 64,128]
-	#p = [50, 50, 50, 50, 50, 50]
-
-	# Test 3:
-	#
-	#    +/- large memory
-	#
-	#n = [ 4,  4,  4,  4,  4]
-	#m = [16, 40, 32, 80, 64]
-	#o = [32, 32, 32, 32, 32]
-	#p = [50, 50, 50, 50, 50]
 
 	print('Overall configurations:        %d' % len(S))
 	print('Test cases per configuration:  %d' % test_cases_per_configuration)
@@ -459,7 +473,7 @@ def main(args):
 		for b in range(0,test_cases_per_configuration):
 			generate_test_case(S[a],B[a],U[a],P[a],R[a],RP[a])
 
-		header = "reqs:    total,  handled,    local,    fwded,   stolen|time: min,      max,      avg"
+		header = "         total,  handled,    local,    fwded,   stolen     t_min,    t_max,    t_avg,*replicas, *evicted"
 			
 		print('  Without replication:')
 		print(header)
@@ -473,14 +487,16 @@ def main(args):
 		inputfiles1 = []
 		inputfiles2 = []
 
-	print (' * = this measure only counts for non-replicated programs')
-	print ('** = this measure only to be used as a safety check for test case generation')
+	print (' * = this measure only counts for replicated programs')
+	# print ('** = this measure only to be used as a safety check for test case generation')
 
 if __name__ == "__main__":
 	# generate_test_case(3, 2)
 	# execute_test_cases(inputfiles1, 5)
 	# prova()
-	main(sys.argv[0:])
+	for i in range(4):
+		print(f"Executing experimental suite {i+1}...")
+		main(sys.argv[0:], i)
 
 
 
