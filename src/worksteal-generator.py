@@ -101,8 +101,8 @@ func main() {{
 
 	wg.Wait()
 	fmt.Println("Stop")
-	fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime,replicas,evictions")
-	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f,%d,%d\\n",
+	fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime,replicas,evictions,   maxMem")
+	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f,%d,%d,%d\\n",
 		REQUESTS,
 		COMPLETED_REQUESTS,
 		COMPLETED_REQUESTS-STOLEN_REQUESTS,
@@ -111,7 +111,7 @@ func main() {{
 		minTime,
 		maxTime,
 		float64(totalTime)/float64(COMPLETED_REQUESTS),
-		-1, -1)
+		-1, -1, -1)
 }}
 
 """
@@ -282,7 +282,7 @@ func P{i}() {{
 }}
 """
 
-# def prova(SERVERS=3, UPPER_THRESHOLD=4, BUSY_THRESHOLD=2, P_ACCEPT="0.8"):
+# def prova(SERVERS=3, UPPER_THRESHOLD=4, BUSY_THRESHOLD=2, P_ACCEPT="0.75"):
 # 	print(generate_header(SERVERS, UPPER_THRESHOLD, BUSY_THRESHOLD, P_ACCEPT))
 # 	print(generate_P1(SERVERS))
 # 	for i in range(2, SERVERS+2):
@@ -314,7 +314,7 @@ def generate_test_case(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT, REPLL
 
 
 	# Add replication metrics (replicas, evictions)
-	output = output.replace("-1, -1)", "Getwcount(), GetEvictionCount())")
+	output = output.replace("-1, -1, -1)", "Getwcount(), GetEvictionCount(), GetReplicaMax())")
 
 
 	if REPLLIMIT > 0:
@@ -424,7 +424,7 @@ def main(args, test=0):
 		# Test 1: Increasing busy threshold (no memory limit, fifo policy)
 		S =		[  3, 	3, 	 3,   3]
 		B = 	[  2, 	4,   6,   8]
-		P =		[0.8, 0.8, 0.8, 0.8]
+		P =		[0.75, 0.75, 0.75, 0.75]
 		R = 	[0] * len(S)
 		RP = 	["fifo"] * len(S)
 		U = 	[int(1.5*Tb) for Tb in B]
@@ -434,7 +434,7 @@ def main(args, test=0):
 		# Test 2: Increasing memory limit, fifo policy
 		S =		[  3, 	3, 	 3,   3]
 		B = 	[  2, 	2,   2,   2]
-		P =		[0.8, 0.8, 0.8, 0.8]
+		P =		[0.75, 0.75, 0.75, 0.75]
 		R = 	[  1, 	2, 	 4,	  8]
 		RP = 	["fifo"] * len(S)
 		U = 	[int(1.5*Tb) for Tb in B]
@@ -443,7 +443,7 @@ def main(args, test=0):
 		# Test 3: Increasing memory limit, lru policy
 		S =		[  3, 	3, 	 3,   3]
 		B = 	[  2, 	2,   2,   2]
-		P =		[0.8, 0.8, 0.8, 0.8]
+		P =		[0.75, 0.75, 0.75, 0.75]
 		R = 	[  1, 	2, 	 4,	  8]
 		RP = 	["lru"] * len(S)
 		U	= 	[int(1.5*Tb) for Tb in B]
@@ -452,7 +452,7 @@ def main(args, test=0):
 		# Test 4: Increasing memory limit, random policy
 		S =		[  3, 	3, 	 3,   3]
 		B = 	[  2, 	2,   2,   2]
-		P =		[0.8, 0.8, 0.8, 0.8]
+		P =		[0.75, 0.75, 0.75, 0.75]
 		R = 	[  1, 	2, 	 4,	  8]
 		RP = 	["random"] * len(S)
 		U	= 	[int(1.5*Tb) for Tb in B]
@@ -473,7 +473,7 @@ def main(args, test=0):
 		for b in range(0,test_cases_per_configuration):
 			generate_test_case(S[a],B[a],U[a],P[a],R[a],RP[a])
 
-		header = "         total,  handled,    local,    fwded,   stolen     t_min,    t_max,    t_avg,*replicas, *evicted"
+		header = "         total,  handled,    local,    fwded,   stolen     t_min,    t_max,    t_avg,*replicas, *evicted,   maxMem"
 			
 		print('  Without replication:')
 		print(header)
