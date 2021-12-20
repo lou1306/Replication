@@ -157,7 +157,8 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 		Sp.Sp[S[i]].Put(t1.Fields...)
 		wcnt+=1
 		// fmt.Println(">>>", replicaCounter[S[i]])
-		replicaCounter[S[i]] += 1	
+		replicaCounter[S[i]] += 1
+		updateReplicaMax()
 		if createTime[*Sp.Sp[S[i]]] == nil {
 			createTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
@@ -301,4 +302,16 @@ func GetReplicaCount() int {
 		result += v
 	}
 	return result
+}
+
+var replicaMax int = 0
+
+func updateReplicaMax() {
+	cnt := GetReplicaCount()
+	if cnt > replicaMax {
+		replicaMax = cnt
+	}
+}
+func GetReplicaMax() int {
+	return replicaMax
 }
