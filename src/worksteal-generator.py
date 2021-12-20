@@ -45,13 +45,13 @@ def generate_header(SERVERS, BUSY_THRESHOLD, UPPER_THRESHOLD, P_ACCEPT):
 package main
 
 import (
-    "fmt"
-    "os"
-    "sync"
-    "time"
-    "math"
-    "math/rand"
-    . "github.com/pspaces/gospace"
+	"fmt"
+	"os"
+	"sync"
+	"time"
+	"math"
+	"math/rand"
+	. "github.com/pspaces/gospace"
 )
 
 const REQUESTS = {100*SERVERS} 
@@ -91,16 +91,16 @@ var minTime int64 = math.MaxInt64
 var maxTime int64 = 0
 
 func main() {{
-    // n servers + 1 request generator
-    wg.Add(SERVERS + 1)
-    {new_spaces}
+	// n servers + 1 request generator
+	wg.Add(SERVERS + 1)
+	{new_spaces}
 
-    fmt.Println("Start")
-    go P1_Generator()
-    {go_peers}
+	fmt.Println("Start")
+	go P1_Generator()
+	{go_peers}
 
-    wg.Wait()
-    fmt.Println("Stop")
+	wg.Wait()
+	fmt.Println("Stop")
 	fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime,replicas,evictions")
 	fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f,%d,%d\\n",
 		REQUESTS,
@@ -119,30 +119,30 @@ func main() {{
 def generate_footer():
 	return """
 func delay() {
-    time.Sleep(time.Duration(rand.Int63n(75))*time.Millisecond)
+	time.Sleep(time.Duration(rand.Int63n(75))*time.Millisecond)
 }
 
 func biasedRandBool(bias float32) bool {
-    // Assuming that 0 <= bias <= 1
-    // Returns true with probability "bias" and
-    // 0 with probability (1-bias).
-    return rand.Float32() < bias
+	// Assuming that 0 <= bias <= 1
+	// Returns true with probability "bias" and
+	// 0 with probability (1-bias).
+	return rand.Float32() < bias
 }
 
 func log(format string, a ...interface{}) {
-    if debug {
-        fmt.Fprintf(os.Stdout, format+"\\n", a ...)
-    }
+	if debug {
+		fmt.Fprintf(os.Stdout, format+"\\n", a ...)
+	}
 }
 
 func updateTimeStats (newTime int64) {
-    totalTime += newTime
-    if (newTime > maxTime) {
-        maxTime = newTime
-    }
-    if (newTime < minTime) {
-        minTime = newTime
-    }
+	totalTime += newTime
+	if (newTime > maxTime) {
+		maxTime = newTime
+	}
+	if (newTime < minTime) {
+		minTime = newTime
+	}
 }
 
 func getTIME() int64 {
@@ -156,33 +156,33 @@ def generate_P1(SERVERS):
 	def ifblock(i): 
 		return f"""
 		if server == {i} {{
-            s{i}.Put({i}, service, tstamp);
-        }}
+			s{i}.Put({i}, service, tstamp);
+		}}
 		"""
 
 	return f"""
 func P1_Generator() {{
-    // This process only generates service requests.
-    // A request is a pair (srv, svc) where
-    // srv is the ID of a server (1 < srv <= SERVERS+1);
-    // svc is the ID of the required service (1 < svc <= SERVERS+1).
-    // Notice that server i is the default target for the i-th service.
-    defer wg.Done()
-    var i int;
-    var service int;
-    var server int;
-    var tstamp int64;
+	// This process only generates service requests.
+	// A request is a pair (srv, svc) where
+	// srv is the ID of a server (1 < srv <= SERVERS+1);
+	// svc is the ID of the required service (1 < svc <= SERVERS+1).
+	// Notice that server i is the default target for the i-th service.
+	defer wg.Done()
+	var i int;
+	var service int;
+	var server int;
+	var tstamp int64;
 
-    for i = 0; i<REQUESTS; i++ {{
-    	// Both service and server must be between 2 and SERVERS+2
-        service = rand.Intn(SERVERS) + 2
-        server = rand.Intn(SERVERS) + 2
-        tstamp = getTIME()
-        l.Lock()
-        {NEWLINE.join(ifblock(i) for i in range(2, SERVERS+2))}
-        l.Unlock()
-        log("[1]\\tput req %d to server %d", service, server)
-    }}
+	for i = 0; i<REQUESTS; i++ {{
+		// Both service and server must be between 2 and SERVERS+2
+		service = rand.Intn(SERVERS) + 2
+		server = rand.Intn(SERVERS) + 2
+		tstamp = getTIME()
+		l.Lock()
+		{NEWLINE.join(ifblock(i) for i in range(2, SERVERS+2))}
+		l.Unlock()
+		log("[1]\\tput req %d to server %d", service, server)
+	}}
 }}
 """
 
@@ -190,95 +190,95 @@ def generate_peer(i, SERVERS):
 	def check_busy(j):
 		return f"""
 			if service == {j} {{
-	            s{j}.QueryP({j}, &s)
-	            if s == "busy" {{
-	                updateTimeStats(getTIME() - tstamp)
-	                stolenReq = true
-	                load += REQ_LOAD
-	            }} else {{
-	                s{j}.Put({j}, {j}, tstamp)
-	            }}
-	        }}
+				s{j}.QueryP({j}, &s)
+				if s == "busy" {{
+					updateTimeStats(getTIME() - tstamp)
+					stolenReq = true
+					load += REQ_LOAD
+				}} else {{
+					s{j}.Put({j}, {j}, tstamp)
+				}}
+			}}
 	"""
 
 	return f"""
 func P{i}() {{
-    defer wg.Done()
-    var tid int = {i}
-    var load int = 0
-    var service int
-    var wasBusyBefore bool
-    var isBusyNow bool
-    var tstamp int64
-    var server int
+	defer wg.Done()
+	var tid int = {i}
+	var load int = 0
+	var service int
+	var wasBusyBefore bool
+	var isBusyNow bool
+	var tstamp int64
+	var server int
 
-    steps := 0
-    // The (steps < 10*REQUESTS) condition is just in case we
-    // drop requests in the replicated case
-    for COMPLETED_REQUESTS < REQUESTS && (steps < 10*REQUESTS) {{
-        steps += 1
-        l.Lock()
-        service = -1
-        wasBusyBefore = isBusyNow
+	steps := 0
+	// The (steps < 10*REQUESTS) condition is just in case we
+	// drop requests in the replicated case
+	for COMPLETED_REQUESTS < REQUESTS && (steps < 10*REQUESTS) {{
+		steps += 1
+		l.Lock()
+		service = -1
+		wasBusyBefore = isBusyNow
 
-        if load < UPPER_THRESHOLD && biasedRandBool(P_ACCEPT) {{
-            s{i}.GetP(&server, &service, &tstamp)
-            if service == tid {{
-                updateTimeStats(getTIME() - tstamp)
-                load += REQ_LOAD
-                if server != tid {{
-                	// We have stolen a request for OUR service which was sent
-                	// to ANOTHER server. Only happens in the replicated case!
-                	STOLEN_REQUESTS += 1
-                    log("[%d]\\tstole req %d from server %d", tid, service, server)
-                }} else {{
-                	log("[%d]\\taccepted req for service %d", tid, service)
-                }}
-            }} else {{
-                // This request is for a service j != tid.
-                // However, if server j declares to be busy,
-                // steal the request.
-                // (Notice that it doesnt't matter whether the "thief" is busy or not.)
-                // If server j is not busy, simply forward the request to it.
-                var s string
-                stolenReq := false
-                {NEWLINE.join(check_busy(j) for j in range(2, SERVERS+2))}
-                
+		if load < UPPER_THRESHOLD && biasedRandBool(P_ACCEPT) {{
+			s{i}.GetP(&server, &service, &tstamp)
+			if service == tid {{
+				updateTimeStats(getTIME() - tstamp)
+				load += REQ_LOAD
+				if server != tid {{
+					// We have stolen a request for OUR service which was sent
+					// to ANOTHER server. Only happens in the replicated case!
+					STOLEN_REQUESTS += 1
+					log("[%d]\\tstole req %d from server %d", tid, service, server)
+				}} else {{
+					log("[%d]\\taccepted req for service %d", tid, service)
+				}}
+			}} else {{
+				// This request is for a service j != tid.
+				// However, if server j declares to be busy,
+				// steal the request.
+				// (Notice that it doesnt't matter whether the "thief" is busy or not.)
+				// If server j is not busy, simply forward the request to it.
+				var s string
+				stolenReq := false
+				{NEWLINE.join(check_busy(j) for j in range(2, SERVERS+2))}
+				
 
-                isBusyNow = load >= BUSY_THRESHOLD
-                if isBusyNow && !wasBusyBefore {{
-                    // Declare that this server is now busy
-                    s{i}.Put({i}, "busy")
-                    log("[%d]\\tnow busy: load %d >= %d",  tid, load, BUSY_THRESHOLD)
-                }}
-                // Update counters
-                if service != -1 {{
-                    if stolenReq {{
-                        STOLEN_REQUESTS += 1
-                        log("[%d]\\tstole req %d from server %d", tid, service, server)
-                    }} else {{
-                        FORWARDED_REQUESTS += 1
-                        log("[%d]\\tfwded req %d to server %d", tid, service, service)
-                    }}
-                }}
-            }}
-        }} else {{
-            if load >= REQ_LOAD {{
-                // Complete a request
-                delay()
-                log("[%d]\\tcompleting a request", tid)
-                load -= REQ_LOAD
-                if load < BUSY_THRESHOLD && (load+REQ_LOAD >= BUSY_THRESHOLD) {{
-                    // Declare that this server is no longer busy
-                    isBusyNow = false
-                    s{i}.GetP({i}, "busy")
-                    log("[%d]\\tno longer busy: load %d < %d",  tid, load, BUSY_THRESHOLD)
-                }}
-                COMPLETED_REQUESTS += 1
-            }}
-        }}
-        l.Unlock()
-    }}
+				isBusyNow = load >= BUSY_THRESHOLD
+				if isBusyNow && !wasBusyBefore {{
+					// Declare that this server is now busy
+					s{i}.Put({i}, "busy")
+					log("[%d]\\tnow busy: load %d >= %d",  tid, load, BUSY_THRESHOLD)
+				}}
+				// Update counters
+				if service != -1 {{
+					if stolenReq {{
+						STOLEN_REQUESTS += 1
+						log("[%d]\\tstole req %d from server %d", tid, service, server)
+					}} else {{
+						FORWARDED_REQUESTS += 1
+						log("[%d]\\tfwded req %d to server %d", tid, service, service)
+					}}
+				}}
+			}}
+		}} else {{
+			if load >= REQ_LOAD {{
+				// Complete a request
+				delay()
+				log("[%d]\\tcompleting a request", tid)
+				load -= REQ_LOAD
+				if load < BUSY_THRESHOLD && (load+REQ_LOAD >= BUSY_THRESHOLD) {{
+					// Declare that this server is no longer busy
+					isBusyNow = false
+					s{i}.GetP({i}, "busy")
+					log("[%d]\\tno longer busy: load %d < %d",  tid, load, BUSY_THRESHOLD)
+				}}
+				COMPLETED_REQUESTS += 1
+			}}
+		}}
+		l.Unlock()
+	}}
 }}
 """
 
@@ -411,17 +411,17 @@ def main(args, test=0):
 	# S =	no. of servers 
 	# 		(keep in mind the total no. of processes will be S+1, 
 	# 		namely the request generator)
-    # B = 	Busy threshold
-    # P = 	probability of accepting a request vs. handling an accepted request
-    # U = 	Upper threshold (load at which the peer stops accepting requests)
-    #		Here, we fix it to 150% of the busy threshold
+	# B = 	Busy threshold
+	# P = 	probability of accepting a request vs. handling an accepted request
+	# U = 	Upper threshold (load at which the peer stops accepting requests)
+	#		Here, we fix it to 150% of the busy threshold
 
-    # ONLY USED IN THE REPLICATED PROGRAM:
-    # R =	Replica limit (0 means no limit)
-    # RP = 	Replacement policy ("fifo", "lru", or "random")
+	# ONLY USED IN THE REPLICATED PROGRAM:
+	# R =	Replica limit (0 means no limit)
+	# RP = 	Replacement policy ("fifo", "lru", or "random")
 
-    if test == 0:
-	    # Test 1: Increasing busy threshold (no memory limit, fifo policy)
+	if test == 0:
+		# Test 1: Increasing busy threshold (no memory limit, fifo policy)
 		S =		[  3, 	3, 	 3,   3]
 		B = 	[  2, 	4,   6,   8]
 		P =		[0.8, 0.8, 0.8, 0.8]
