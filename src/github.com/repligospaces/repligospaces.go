@@ -94,7 +94,6 @@ func evict(Sp Replispace, s string, t Tuple) {
 	// Remove timestamps associated to tuple t
 	delete(createTime[*Sp.Sp[s]], t.String())
 	delete(lastAccessTime[*Sp.Sp[s]], t.String())
-	replicaCounter[s] -= len(y)
 	evictionCount += len(y)
 }
 
