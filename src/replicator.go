@@ -5,6 +5,7 @@
 	(Prototype implementation)
 
 HISTORY:
+	2021.12.17	bugfix: sometimes a tuple was replicated multiple times to the same space
 	2020.06.05  quiet mode
 	2020.06.04  changed targets from uri[*si] to uri[si]
 	2020.06.04  bugfix: addglobaldecls() now works if the input program has global variables
@@ -170,7 +171,7 @@ func initparams() {
 func addimport(fset *token.FileSet, node *ast.File) {
 	// Sub-AST for import: import "repligospaces"
 	bascilit1 := &ast.BasicLit{Kind: token.STRING, Value: "\"github.com/repligospaces\""} // "github.com/repligospaces"
-	identdot := ast.NewIdent(".")                                              // .
+	identdot := ast.NewIdent(".")                                                         // .
 	importspec := &ast.ImportSpec{Name: identdot, Path: bascilit1}
 
 	for _, f := range node.Decls {
@@ -191,23 +192,23 @@ func addglobaldecls(fset *token.FileSet, node *ast.File) {
 	//var dec1 *ast.GenDecl
 	var exgendecl *ast.GenDecl
 	var exgendecl1 *ast.GenDecl
-    var exgendecl2 *ast.GenDecl
+	var exgendecl2 *ast.GenDecl
 
 	// Declarations of useful identifiers.
 	identurl := ast.NewIdent("uri")
 	identm := ast.NewIdent("Sp")
 	identmake := ast.NewIdent("make")
 	identstring := ast.NewIdent("string")
-    identspace := ast.NewIdent("Space")
+	identspace := ast.NewIdent("Space")
 	identspace1 := ast.NewIdent("Space")
-    identrepligospace := ast.NewIdent("Replispace")
-    identrsp := ast.NewIdent("rsp")
+	identrepligospace := ast.NewIdent("Replispace")
+	identrsp := ast.NewIdent("rsp")
 
-    // sub-AST for: var rsp Replispace = Replispace{Sp: Sp}
-    Keyvalueexpr := &ast.KeyValueExpr{Key: identm, Value: identm} // Sp: Sp
-    compositelit := &ast.CompositeLit{Type: identrepligospace,  Elts: []ast.Expr{Keyvalueexpr}} // Replispace{Sp: Sp}
-    valuespec3 := &ast.ValueSpec{Names: []*ast.Ident{identrsp}, Type: identrepligospace, Values: []ast.Expr{compositelit}} // rsp Replispace = Replispace{Sp: Sp}
-    exgendecl2 = &ast.GenDecl{Specs: []ast.Spec{valuespec3}, Tok: token.VAR} // var rsp Replispace = Replispace{Sp: Sp}
+	// sub-AST for: var rsp Replispace = Replispace{Sp: Sp}
+	Keyvalueexpr := &ast.KeyValueExpr{Key: identm, Value: identm}                                                          // Sp: Sp
+	compositelit := &ast.CompositeLit{Type: identrepligospace, Elts: []ast.Expr{Keyvalueexpr}}                             // Replispace{Sp: Sp}
+	valuespec3 := &ast.ValueSpec{Names: []*ast.Ident{identrsp}, Type: identrepligospace, Values: []ast.Expr{compositelit}} // rsp Replispace = Replispace{Sp: Sp}
+	exgendecl2 = &ast.GenDecl{Specs: []ast.Spec{valuespec3}, Tok: token.VAR}                                               // var rsp Replispace = Replispace{Sp: Sp}
 
 	// Sub-AST for: var space[] string
 	// array1 := &ast.ArrayType{Elt: identstring}                                  // [] string
@@ -242,7 +243,7 @@ func addglobaldecls(fset *token.FileSet, node *ast.File) {
 		}
 
 		if !done {
-			list1 = append(list1, exgendecl, exgendecl1,  exgendecl2)
+			list1 = append(list1, exgendecl, exgendecl1, exgendecl2)
 			done = true
 		}
 	}
@@ -474,14 +475,20 @@ func scanblockput(fset *token.FileSet, node *ast.BlockStmt, blockid string) {
 					info("transformer: transforming call to Put in block (%s)", blockid)
 
 					if len(targetlocations[fn1.X.(*ast.CallExpr)]) > 0 {
-						for i:=0; i<len(targetlocations[fn1.X.(*ast.CallExpr)]); i++ {
-							info("transformer: replicating the tuple to process (%d)", targetlocations[fn1.X.(*ast.CallExpr)][i])
+						var spset map[string]struct{} = make(map[string]struct{})
+
+						for i := 0; i < len(targetlocations[fn1.X.(*ast.CallExpr)]); i++ {
 							identurl := ast.NewIdent("uri")
 							spaceidd := spaceid[targetlocations[fn1.X.(*ast.CallExpr)][i]]
-							////identstarexpr := &ast.StarExpr{X: spaceidd}
-							////indexpr02 := &ast.IndexExpr{X: identurl, Index: identstarexpr} // uri[* spaceid]
-							indexpr02 := &ast.IndexExpr{X: identurl, Index: spaceidd} // uri[* spaceid]
-							newtargets[fn1] = append(newtargets[fn1], indexpr02)
+							_, alreadyAdded := spset[spaceidd.Name]
+							if !alreadyAdded {
+								spset[spaceidd.Name] = struct{}{}
+								info("transformer: replicating the tuple to process (%d)", targetlocations[fn1.X.(*ast.CallExpr)][i])
+								////identstarexpr := &ast.StarExpr{X: spaceidd}
+								////indexpr02 := &ast.IndexExpr{X: identurl, Index: identstarexpr} // uri[* spaceid]
+								indexpr02 := &ast.IndexExpr{X: identurl, Index: spaceidd} // uri[* spaceid]
+								newtargets[fn1] = append(newtargets[fn1], indexpr02)
+							}
 						}
 					}
 
@@ -492,7 +499,7 @@ func scanblockput(fset *token.FileSet, node *ast.BlockStmt, blockid string) {
 					copy(newArgs, fn1.X.(*ast.CallExpr).Args)
 
 					// Sub-AST for: t := CreateTuple(args)
-					identcreatetuple := ast.NewIdent("CreateTuple") // CreateTuple
+					identcreatetuple := ast.NewIdent("CreateTuple")                   // CreateTuple
 					callexpr01 := &ast.CallExpr{Fun: identcreatetuple, Args: newArgs} // CreateTuple(newargs)
 
 					// Sub-AST for: a := make([]string, n)
@@ -500,25 +507,25 @@ func scanblockput(fset *token.FileSet, node *ast.BlockStmt, blockid string) {
 					identmake := ast.NewIdent("make")
 					identrsp1 := ast.NewIdent("rsp")
 					identstring := ast.NewIdent("string")
-					basiclit := &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%d", len(newtargets[fn1]))}                             // length of the target spaces
+					basiclit := &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%d", len(newtargets[fn1]))}            // length of the target spaces
 					arraytype := &ast.ArrayType{Elt: identstring}                                                            // []string
 					callexpr02 := &ast.CallExpr{Fun: identmake, Args: []ast.Expr{arraytype, basiclit}}                       // make([]string, m)
 					assignment05 := &ast.AssignStmt{Lhs: []ast.Expr{identa}, Tok: token.DEFINE, Rhs: []ast.Expr{callexpr02}} // a := make([]string, 2)
 
 					// ....
 					/*
-					for i := range newtargets[fn1] {
-						//warn("--> i=%d  boh=%s", i,newtargets[fn1][i])
-						if newtargets[fn1][i] != nil {
-							//newArgs = append(newArgs, newtargets[fn1][i])
+						for i := range newtargets[fn1] {
+							//warn("--> i=%d  boh=%s", i,newtargets[fn1][i])
+							if newtargets[fn1][i] != nil {
+								//newArgs = append(newArgs, newtargets[fn1][i])
+							}
 						}
-					}
 					*/
 
 					// Sub-AST for : a[i] = uri[spaceid]
 					// iterate over the set of target spaces
 
-                     ///////////////////////////////////////////////////
+					///////////////////////////////////////////////////
 
 					for i, _ := range newtargets[fn1] {
 						basiclit2 := &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%d", i)} // length of the target spaces
@@ -527,7 +534,7 @@ func scanblockput(fset *token.FileSet, node *ast.BlockStmt, blockid string) {
 						//blockput[n].List = append(blockput[n].List, assignment06) // a0[0] = uri[s1]
 						blockput[n].List = append([]ast.Stmt{assignment06}, blockput[n].List...) // a0[0] = uri[s1]
 					}
-                    ///////////////////////////////////////////////////
+					///////////////////////////////////////////////////
 
 					blockput[n].List = append([]ast.Stmt{assignment05}, blockput[n].List...) // a0 := make([]string, 12345)
 
@@ -624,7 +631,7 @@ func scanblockget(fset *token.FileSet, node *ast.BlockStmt, blockid string) {
 
 			if ok && reflect.TypeOf(fn1.X.(*ast.CallExpr).Fun).String() == "*ast.SelectorExpr" {
 				if fn1.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr).Sel.Name == "QueryP" ||
-				   fn1.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr).Sel.Name == "GetP"{
+					fn1.X.(*ast.CallExpr).Fun.(*ast.SelectorExpr).Sel.Name == "GetP" {
 					info("transformer: transforming call to GetP or QueryP block (%s)", blockid)
 					newArgs := make([]ast.Expr, len(fn1.X.(*ast.CallExpr).Args))
 					copy(newArgs, fn1.X.(*ast.CallExpr).Args)
@@ -749,7 +756,7 @@ func main() {
 	}
 
 	info("building symbol table")
-	buildsymboltable(fset,node)
+	buildsymboltable(fset, node)
 
 	// Initialise data structures.
 	blockspaces = make(map[int]string)
@@ -758,12 +765,12 @@ func main() {
 	newtargets = make(map[*ast.ExprStmt][]ast.Expr)
 
 	// Input sanity check.
-	sanitycheck(fset,node)
+	sanitycheck(fset, node)
 
 	// Static Analysis
 	info("static analysis")
-	preanalyse(fset,node)
-	analyse(fset,node)  // populate targetlocations
+	preanalyse(fset, node)
+	analyse(fset, node) // populate targetlocations
 
 	// Transformation.
 	info("program transformation")
