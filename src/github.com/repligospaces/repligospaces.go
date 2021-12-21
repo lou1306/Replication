@@ -50,7 +50,7 @@ var wcnt int
 var evictionCount int
 
 func dataFieldsOf(t Tuple) ([]interface{}) {
-	return t.Fields[:len(t.Fields)-1]
+	return t.Fields[:len(t.Fields)-2]
 }
 
 func contains (strings []string, s string) bool {
@@ -72,29 +72,24 @@ func MinByTime(mp map[Space]map[string]TimeRecord, s Space) Tuple {
 			currentMinValue = element.time
 		}
 	}
-	return result
+	return CreateTuple(dataFieldsOf(result)...)
 }
 
 
 func evict(Sp Replispace, s string, t Tuple) {
-	
+	// fmt.Println(">>>evict", s, t.String())
+
+	var createTime int64
 	var y []string // <--- extra field to match the space list S
 	var data []interface{}
 	data = append(data, t.Fields...)
+	data = append(data, &createTime)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
-
-	// fmt.Println(">>> evicting", p1, " from ", s)
 	Sp.Sp[s].QueryP(p1.Fields...)
-	Sp.mux.Unlock()
-	GetP(t, Sp, *Sp.Sp[s])
-	Sp.mux.Lock()
-
-
-	// Remove timestamps associated to tuple t
-	delete(createTime[*Sp.Sp[s]], t.String())
-	delete(lastAccessTime[*Sp.Sp[s]], t.String())
+	unsafeGetP(t, Sp, *Sp.Sp[s])
 	evictionCount += len(y)
+
 }
 
 func EvictFIFO(Sp Replispace, s string) {
@@ -120,29 +115,30 @@ func EvictRandom(Sp Replispace, s string) {
 		t = element.tuple
 		break
 	}
-	evict(Sp, s, t)
+	evict(Sp, s, CreateTuple(dataFieldsOf(t)...))
 }
 
 
 //~~~~~~~~
 // Add a tuple to the set S of spaces identifiers
 func Put(t Tuple, Sp Replispace, S []string) Tuple {
+	// fmt.Println(">>>Put", t.String())
 
 	Sp.mux.Lock()
 
 	// create tuple t' = {t,S}
 	var data []interface{}
 	data = append(data, t.Fields...)
-	// data = append(data, time.Now().UnixNano())
+	data = append(data, time.Now().UnixNano())
 	data = append(data, S)
 	var t1 Tuple = CreateTuple(data...)
 
-	now := TimeRecord{tuple:t, time:time.Now()}
+	now := TimeRecord{tuple:t1, time:time.Now()}
 
 
 	// add t' to each space in S
 	for i := 0; i < len(S); i++ {
-		if Sp.ReplLimit > 0 && replicaCounter[S[i]]+1 > Sp.ReplLimit {
+		if Sp.ReplLimit > 0 && (replicaCounter[S[i]]+1) > Sp.ReplLimit {
 			switch Sp.ReplacementPolicy {
 			case "lru":
 				EvictLRU(Sp, S[i])
@@ -156,9 +152,12 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 		}
 		Sp.Sp[S[i]].Put(t1.Fields...)
 		wcnt+=1
-		// fmt.Println(">>>", replicaCounter[S[i]])
 		replicaCounter[S[i]] += 1
 		updateReplicaMax()
+		// fmt.Println(">>>",
+		// 	"S[", i, "]:", replicaCounter[S[i]], 
+		// 	"tot: ", GetReplicaCount(),
+		// 	"max: ", GetReplicaMax())
 		if createTime[*Sp.Sp[S[i]]] == nil {
 			createTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
@@ -166,8 +165,8 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 			lastAccessTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
 		}
 
-		createTime[*Sp.Sp[S[i]]][t.String()] = now
-		lastAccessTime[*Sp.Sp[S[i]]][t.String()] = now
+		createTime[*Sp.Sp[S[i]]][t1.String()] = now
+		lastAccessTime[*Sp.Sp[S[i]]][t1.String()] = now
 	}
 
 	Sp.mux.Unlock()
@@ -210,11 +209,11 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	Sp.mux.Lock()
 
 	// create template p' = {t,S}
-	// var createTime int64 // <--- extra field to match the creation time
+	var createTime int64 // <--- extra field to match the creation time
 	var y []string // <--- extra field to match the space list S
 	var data []interface{}
 	data = append(data, p.Fields...)
-	// data = append(data, &createTime)
+	data = append(data, &createTime)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
 
@@ -224,7 +223,7 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	if e == nil {
 		// no error: return the matching tuple without the last field
 		var u = CreateTuple(dataFieldsOf(t1)...)
-		lastAccessTime[s][u.String()] = TimeRecord{tuple:u, time:time.Now()}
+		lastAccessTime[s][t1.String()] = TimeRecord{tuple:t1, time:time.Now()}
 
 		Sp.mux.Unlock()
 		return u
@@ -234,21 +233,14 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	return CreateTuple()   // returns an empty tuple when no tuple is available
 }
 
-//~~~~~~~~
-// Remove a tuple from space s, and
-// from any other space where it might have been replicated.
-//
-// Note that if no matching tuples are found in s, no tuple
-// is removed from any other space.
-func GetP(p Tuple, Sp Replispace, s Space) Tuple {
-	Sp.mux.Lock()
 
+func unsafeGetP(p Tuple, Sp Replispace, s Space) Tuple {
 	// create template p' = {t,S}
 	var y []string // <--- extra field to match the space list S
-	// var createTimestamp int64 // <--- extra field to match the creation time
+	var createTimestamp int64 // <--- extra field to match the creation time
 	var data []interface{}
 	data = append(data, p.Fields...)
-	// data = append(data, &createTimestamp)
+	data = append(data, &createTimestamp)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
 
@@ -264,28 +256,42 @@ func GetP(p Tuple, Sp Replispace, s Space) Tuple {
 		v = S.([]string)
 
 		// for each space in the set S of space identifiers
-		for s, space := range v {			// remove the tuple from the relevant spaces
-			// fmt.Println(">>> evicting", p1, " from ", s)
+		for s, space := range v {
+			// remove the tuple from the relevant spaces
+			delete(createTime[*Sp.Sp[space]], t1.String())
+			delete(lastAccessTime[*Sp.Sp[space]], t1.String())
 			u, e1 := Sp.Sp[v[s]].GetP(p1.Fields...)
 
 			if e1 == nil {
 				replicaCounter[v[s]] -= 1
-				delete(createTime[*Sp.Sp[space]], u.String())
-				delete(lastAccessTime[*Sp.Sp[space]], u.String())
-
+				// fmt.Println(">>>",
+				// 		v[s], ":", replicaCounter[v[s]], 
+				// 		"tot: ", GetReplicaCount(),
+				// 		"max: ", GetReplicaMax())
+				
 				if s == len(v)-1 {
 					// no error: tuple successfully removed from the space
-					/////////fmt.Println("  ...Tuple removed from:", v[s])
+					///////fmt.Println("  ...Tuple removed from:", v[s])
 					u = CreateTuple(dataFieldsOf(u)...)
-					Sp.mux.Unlock()
 					return u
 				}
 			}
 		}
 	}
+	return CreateTuple() // returns an empty tuple when no tuple is available
+}
 
+//~~~~~~~~
+// Remove a tuple from space s, and
+// from any other space where it might have been replicated.
+//
+// Note that if no matching tuples are found in s, no tuple
+// is removed from any other space.
+func GetP(p Tuple, Sp Replispace, s Space) Tuple {
+	Sp.mux.Lock()
+	result := unsafeGetP(p, Sp, s)
 	Sp.mux.Unlock()
-	return CreateTuple()   // returns an empty tuple when no tuple is available
+	return result
 }
 
 func Getwcount() int {
