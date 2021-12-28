@@ -63,8 +63,8 @@ func main() {
 
     wg.Wait()
     fmt.Println("Stop")
-    fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime")
-    fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f",
+    fmt.Println("all,completed,local,forwarded,stolen,minTime,maxTime,avgTime,replicas,evictions")
+    fmt.Fprintf(os.Stdout, "%d,%d,%d,%d,%d,%d,%d,%f,%d,%d",
         REQUESTS,
         COMPLETED_REQUESTS,
         COMPLETED_REQUESTS-STOLEN_REQUESTS,
@@ -72,7 +72,9 @@ func main() {
         STOLEN_REQUESTS,
         minTime,
         maxTime,
-        float64(totalTime)/float64(COMPLETED_REQUESTS))
+        float64(totalTime)/float64(COMPLETED_REQUESTS),
+        GetReplicaCount(),
+        GetEvictionCount())
 
 }
 
@@ -150,7 +152,7 @@ func P2() {
                 var s string
                 stolenReq := false
                 if service == 2 {
-                    s2.QueryP(&s)
+                    s2.QueryP(2, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -161,7 +163,7 @@ func P2() {
                     }
                 }
                 if service == 3 {
-                    s3.QueryP(&s)
+                    s3.QueryP(3, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -172,7 +174,7 @@ func P2() {
                     }
                 }
                 if service == 4 {
-                    s4.QueryP(&s);
+                    s4.QueryP(4, &s);
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -254,7 +256,7 @@ func P3() {
                 var s string
                 // Steal the job if target's busy
                 if service == 2 {
-                    s2.QueryP(&s)
+                    s2.QueryP(2, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -265,7 +267,7 @@ func P3() {
                     }
                 }
                 if service == 3 {
-                    s3.QueryP(&s)
+                    s3.QueryP(3, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -276,7 +278,7 @@ func P3() {
                     }
                 }
                 if service == 4 {
-                    s4.QueryP(&s);
+                    s4.QueryP(4, &s);
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -356,7 +358,7 @@ func P4() {
                 stolenReq := false
                 // Steal the job if target's busy
                 if service == 2 {
-                    s2.QueryP(&s)
+                    s2.QueryP(2, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -367,7 +369,7 @@ func P4() {
                     }
                 }
                 if service == 3 {
-                    s3.QueryP(&s)
+                    s3.QueryP(3, &s)
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
@@ -378,7 +380,7 @@ func P4() {
                     }
                 }
                 if service == 4 {
-                    s4.QueryP(&s);
+                    s4.QueryP(4, &s);
                     if s == "busy" {
                         //updateTimeStats(time.Now().UnixMicro() - tstamp)
                         updateTimeStats(getTIME() - tstamp)
