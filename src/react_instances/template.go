@@ -23,11 +23,12 @@ var reads_insuccess int
 var writes_extra int
 var wg sync.WaitGroup
 
-var s1 Space
-var s2 Space
-var s3 Space
-var s4 Space
+// var s1 Space
+// var s2 Space
+// var s3 Space
+// var s4 Space
 
+<SPACES>
 
 func main() {
 	debug = false
@@ -40,18 +41,21 @@ func main() {
 	reads_insuccess = 0
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	wg.Add(4)
+	wg.Add(<N>)
 
 	s1 = NewSpace("tcp://localhost:34001/s1")
 	s2 = NewSpace("tcp://localhost:34002/s2")
 	s3 = NewSpace("tcp://localhost:34003/s3")
 	s4 = NewSpace("tcp://localhost:34004/s4")
-    
+	
+	<NEWSPACES>    
 
-	go p1()
-	go p2()
-	go p3()
-	go p4()
+	<GOPROCESSES>
+
+	// go p1()
+	// go p2()
+	// go p3()
+	// go p4()
    
 
 	wg.Wait()
@@ -62,33 +66,35 @@ func main() {
 	fmt.Printf ("    %8d, %8d, %8d, %8d, %8d, %8d, %8d, %8d\n", writes_local, writes_remote, writes_replicated, reads_local, reads_remote, writestotal, reads_success, reads_insuccess)
 }
 
-func p1() {
-	defer wg.Done()
-	var value int
+// func p1() {
+// 	defer wg.Done()
+// 	var value int
 
-	<P1>
-}
+// 	<P1>
+// }
 
-func p2() {
-	defer wg.Done()
-	var value int
+// func p2() {
+// 	defer wg.Done()
+// 	var value int
 
-	<P2>
-}
+// 	<P2>
+// }
 
-func p3() {
-	defer wg.Done()
-	var value int
+// func p3() {
+// 	defer wg.Done()
+// 	var value int
 
-	<P3>
-}
+// 	<P3>
+// }
 
-func p4() {
-	defer wg.Done()
-	var value int
+// func p4() {
+// 	defer wg.Done()
+// 	var value int
 
-	<P4>
-}
+// 	<P4>
+// }
+
+<PROCESSES>
 
 
 func log(format string, a ...interface{}) {

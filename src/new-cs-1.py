@@ -50,6 +50,17 @@ block2 = (
 	'	countreads(value,<LOCAL>,<TARGET>)\n'
 	'	l.Unlock()')
 
+def templateP(n, body):
+	return """
+func p{}() {
+	defer wg.Done()
+	var value int
+
+	{}
+}
+""".format(n, body)
+
+
 
 '''
 	n = no. of processes (must match the template for now)
@@ -64,32 +75,58 @@ def generate_test_case(n=4, m=16, o=2, p=50):
 		output = template.read()
 
 	random.seed(datetime.datetime.now())
+	processes = []
 
 	# For each process
 	for j in range(0,n):
 		local = j+1
 
 		# Guess o operations with their address
-		for i in range(0,o):
-			addr = random.randint(1,m)   # random address, from 1 to m
+		body = []
+		for _ in range(0, o):
+			addr = random.randint(1, m)   # random address, from 1 to m
 			target = ((addr-1)/(m/n))+1      # destination space (node 1 stores addresses from 1 to m/n, and so on)
 			value = ((addr-1)/(m/n))+1       # same range as destination address (but irrelevant for now)
-			op = 'Put' if random.randint(1,100)<=p else 'QueryP'
+			op = 'Put' if random.randint(1, 100) <= p else 'QueryP'
 
 			#print("operation %s, addr %d, target %d" % (op, addr, target))
 
-			if op == 'Put': block = block1
-			else:           block = block2
+			block = block1 if op == "Put" else block2
 
-			block = block.replace('<ADDR>', '%d' %addr)
-			block = block.replace('<LOCAL>', '%d' %local)
-			block = block.replace('<VAL>', '%d' %value)
-			block = block.replace('<TARGET>', '%d' %target)
+			block = block.replace('<ADDR>', '%d' % addr)
+			block = block.replace('<LOCAL>', '%d' % local)
+			block = block.replace('<VAL>', '%d' % value)
+			block = block.replace('<TARGET>', '%d' % target)
+			body.append(block)
 
-			key = '	<P%d>' %local
-			output = output.replace(key, block+'\n\n'+key)
+		processes.append(templateP(local, "\n\n".join(body)))
+		# 	key = '	<P%d>' %local
+		# 	output = output.replace(key, block+'\n\n'+key)
 
-		output = output.replace('\n\n'+key, '')
+		# output = output.replace('\n\n'+key, '')
+
+	goprocs = ["go p{}()".format(i + 1) for i in xrange(n)]
+	spaces = ["var s{} Space".format(i + 1) for i in xrange(n)]
+	STARTPORT = 34000
+	newspaces = [
+		"""s{n} = NewSpace("tcp://localhost:{port}/s{n}")""".format(
+			n=i+1,
+			port=STARTPORT+i+1
+		) for i in xrange(n)
+	]
+
+	output = output.replace("<PROCESSES>", "\n".join(processes))
+	output = output.replace("<GOPROCESSES>", "\n".join(goprocs))
+	output = output.replace("<N>", str(n))
+	output = output.replace("<SPACES>", "\n".join(spaces))
+	output = output.replace("<NEWSPACES>", "\n".join(newspaces))
+
+	# s1 = NewSpace("tcp://localhost:34001/s1")
+	# s2 = NewSpace("tcp://localhost:34002/s2")
+	# s3 = NewSpace("tcp://localhost:34003/s3")
+	# s4 = NewSpace("tcp://localhost:34004/s4")
+
+
 
 	# Save the test case (GoSpace version)
 	c1 = str(counter).zfill(3)
@@ -252,7 +289,7 @@ def main(args):
 		p1 = str(p[a]).zfill(3)
 
 		print('Configuration no. %d (n=%s m=%s o=%s p=%s)' %(a+1,n1,m1,o1,p1))
-		for b in range(0,test_cases_per_configuration):
+		for _ in range(0,test_cases_per_configuration):
 			generate_test_case(n[a],m[a],o[a],p[a])
 
 		print('  Without replication:')
