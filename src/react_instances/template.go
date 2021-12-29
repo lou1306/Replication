@@ -43,20 +43,9 @@ func main() {
 
 	wg.Add(<N>)
 
-	s1 = NewSpace("tcp://localhost:34001/s1")
-	s2 = NewSpace("tcp://localhost:34002/s2")
-	s3 = NewSpace("tcp://localhost:34003/s3")
-	s4 = NewSpace("tcp://localhost:34004/s4")
-	
 	<NEWSPACES>    
 
 	<GOPROCESSES>
-
-	// go p1()
-	// go p2()
-	// go p3()
-	// go p4()
-   
 
 	wg.Wait()
 
@@ -65,34 +54,6 @@ func main() {
 	fmt.Println("       loc w,    rem w,   repl w,    loc r,    rem r,    tot w,   succ r,   fail r")
 	fmt.Printf ("    %8d, %8d, %8d, %8d, %8d, %8d, %8d, %8d\n", writes_local, writes_remote, writes_replicated, reads_local, reads_remote, writestotal, reads_success, reads_insuccess)
 }
-
-// func p1() {
-// 	defer wg.Done()
-// 	var value int
-
-// 	<P1>
-// }
-
-// func p2() {
-// 	defer wg.Done()
-// 	var value int
-
-// 	<P2>
-// }
-
-// func p3() {
-// 	defer wg.Done()
-// 	var value int
-
-// 	<P3>
-// }
-
-// func p4() {
-// 	defer wg.Done()
-// 	var value int
-
-// 	<P4>
-// }
 
 <PROCESSES>
 
