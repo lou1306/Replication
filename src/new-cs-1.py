@@ -52,12 +52,12 @@ block2 = (
 
 def templateP(n, body):
 	return """
-func p{}() {
+func p{}() {{
 	defer wg.Done()
 	var value int
 
 	{}
-}
+}}
 """.format(n, body)
 
 
