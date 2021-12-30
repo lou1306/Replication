@@ -51,8 +51,8 @@ func main() {
 
 	writes_replicated = 0   // these include the normal put too
 
-	fmt.Println("       loc w,    rem w,   repl w,    loc r,    rem r,    tot w,   succ r,   fail r")
-	fmt.Printf ("    %8d, %8d, %8d, %8d, %8d, %8d, %8d, %8d\n", writes_local, writes_remote, writes_replicated, reads_local, reads_remote, writestotal, reads_success, reads_insuccess)
+	fmt.Println("       loc w,    rem w,   repl w,    loc r,    rem r,    tot w,   succ r,   fail r, maxtuples")
+	fmt.Printf ("    %8d, %8d, %8d, %8d, %8d, %8d, %8d, %8d,  %8d\n", writes_local, writes_remote, writes_replicated, reads_local, reads_remote, writestotal, reads_success, reads_insuccess, -1)
 }
 
 <PROCESSES>

@@ -30,6 +30,7 @@ counter = 0   # test case counter
 
 inputfiles1 = []
 inputfiles2 = []
+inputfiles3 = []
 
 # VAL = value, ADDR = address, LOCAL = local process, TARGET = target process (depending on the address)
 block1 = (
@@ -137,6 +138,8 @@ def generate_test_case(n=4, m=16, o=2, p=50):
 
 	filename = 'react_instances/test%s_n%s_m%s_o%s_p%s.go' %(c1,n1,m1,o1,p1)
 	filename2 = 'react_instances/r_test%s_n%s_m%s_o%s_p%s.go' %(c1,n1,m1,o1,p1)
+	filename3 = 'react_instances/react_test%s_n%s_m%s_o%s_p%s.go' %(c1,n1,m1,o1,p1)
+
 
 	with open(filename, 'w') as outputfile:
 		outputfile.write(output)
@@ -146,21 +149,31 @@ def generate_test_case(n=4, m=16, o=2, p=50):
 
 	output = os.popen(cmd).read()
 	output = output.replace('writes_replicated = 0', 'writes_replicated = Getwcount()-writes_local')
-	output = output.replace(
-		"github.com/repligospaces",
-		"github.com/repligospaces/reactigospace")
+	output = output.replace("reads_insuccess, -1)", "reads_insuccess, GetReplicaMax())")
 	
-	output = output.replace(
-		"var rsp Replispace = Replispace{Sp: Sp}",
-		"var rsp Reactispace = Reactispace{Sp: Sp}",
-
-	)
 
 	with open(filename2, 'w') as outputfile:
 		outputfile.write(output)
 
+	## This is just for reactigospaces (BEGIN)
+	output = output.replace(
+		"github.com/repligospaces",
+		"github.com/repligospaces/reactigospace")
+	
+
+	output = output.replace(
+		"var rsp Replispace = Replispace{Sp: Sp}",
+		"var rsp Reactispace = Reactispace{Sp: Sp}",
+	)
+	## This is just for reactigospaces (END)
+	
+
+	with open(filename3, 'w') as outputfile:
+		outputfile.write(output)
+
 	inputfiles1.append(filename)
 	inputfiles2.append(filename2)
+	inputfiles3.append(filename3)
 	counter += 1
 
 
@@ -229,7 +242,7 @@ def execute_test_cases(filenames,times):
 
 
 def main(args):
-	global inputfiles1, inputfiles2
+	global inputfiles1, inputfiles2, inputfiles3
 
 	test_cases_per_configuration = 10
 	simulations_per_test_case = 10
@@ -277,7 +290,7 @@ def main(args):
 	print('Overall configurations:        %d' % len(n))
 	print('Test cases per configuration:  %d' % test_cases_per_configuration)
 	print('Simulations per test case:     %d' % simulations_per_test_case)
-	runs = test_cases_per_configuration*simulations_per_test_case*2
+	runs = test_cases_per_configuration*simulations_per_test_case*3
 	print('Simulations per configuration: %d' % runs)
 
 	print('')
@@ -293,16 +306,21 @@ def main(args):
 			generate_test_case(n[a],m[a],o[a],p[a])
 
 		print('  Without replication:')
-		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r')
+		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r, maxtuples')
 		execute_test_cases(inputfiles1,simulations_per_test_case)
 
-		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r')
+		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r, maxtuples')
 		print('  With replication:')
 		execute_test_cases(inputfiles2,simulations_per_test_case)
+
+		print('        *loc w,   *rem w,   repl w,   *loc r,   *rem r,  **tot w, **succ r, **fail r, maxtuples')
+		print('  With replication (reactive):')
+		execute_test_cases(inputfiles3,simulations_per_test_case)
 
 
 		inputfiles1 = []
 		inputfiles2 = []
+		inputfiles3 = []
 
 	print (' * = this measure only counts for non-replicated programs')
 	print ('** = this measure only to be used as a safety check for test case generation')
