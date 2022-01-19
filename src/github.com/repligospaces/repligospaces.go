@@ -28,7 +28,7 @@ type Replispace struct {
 }
 
 // Tracks the number of replicas in each space
-var replicaCounter map[string]int = make(map[string]int)
+var replicaCounter map[Space]int = make(map[Space]int)
 // Maps a pair (space, tuple) to its creation time
 var createTime map[Space]map[string]TimeRecord = make(map[Space]map[string]TimeRecord)
 // Maps a pair (space, tuple) to its last access time
@@ -50,7 +50,7 @@ var wcnt int
 var evictionCount int
 
 func dataFieldsOf(t Tuple) ([]interface{}) {
-	return t.Fields[:len(t.Fields)-2]
+	return t.Fields[:len(t.Fields)-1]
 }
 
 func contains (strings []string, s string) bool {
@@ -75,48 +75,84 @@ func MinByTime(mp map[Space]map[string]TimeRecord, s Space) Tuple {
 	return CreateTuple(dataFieldsOf(result)...)
 }
 
+/// Management of memory-limited tuple spaces
 
-func evict(Sp Replispace, s string, t Tuple) {
-	// fmt.Println(">>>evict", s, t.String())
+func evictTuple(Sp Replispace, s string) {
+	var t Tuple
+	switch Sp.ReplacementPolicy {
+	case "lru":
+		t = MinByTime(lastAccessTime, *Sp.Sp[s])
+	case "random":
+		for _, element := range createTime[*Sp.Sp[s]] {
+			t = element.tuple
+			t = CreateTuple(dataFieldsOf(t)...)
+			break
+		}
+	case "fifo":
+		fallthrough
+	default:
+		t = MinByTime(createTime, *Sp.Sp[s])
+	}
 
-	var createTime int64
 	var y []string // <--- extra field to match the space list S
 	var data []interface{}
 	data = append(data, t.Fields...)
-	data = append(data, &createTime)
+	// var createTime int64
+	// data = append(data, &createTime)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
 	Sp.Sp[s].QueryP(p1.Fields...)
 	unsafeGetP(t, Sp, *Sp.Sp[s])
 	evictionCount += len(y)
-
 }
 
-func EvictFIFO(Sp Replispace, s string) {
-	// Evicts the oldest (lowest creation time) tuple from s
-	t := MinByTime(createTime, *Sp.Sp[s])
-	evict(Sp, s, t)
-}
-
-func EvictLRU(Sp Replispace, s string) {
-	// Evicts the oldest (lowest creation time) tuple from s
-	t := MinByTime(lastAccessTime, *Sp.Sp[s])
-	evict(Sp, s, t)
-}
-
-func EvictRandom(Sp Replispace, s string) {
-	// Evicts one random tuple
-	var t Tuple
-
-	// Notice that, in Go, iteration over a map happens in
-	// unspecified order, and since Go v1 the order is guaranteed
-	// to be randomized.
-	for _, element := range createTime[*Sp.Sp[s]] {
-		t = element.tuple
-		break
+func afterPut(t1 Tuple, Sp Replispace, s Space, now TimeRecord) {
+	replicaCounter[s] += 1
+	switch Sp.ReplacementPolicy {
+	case "lru":
+		if lastAccessTime[s] == nil {
+			lastAccessTime[s] = make(map[string]TimeRecord)
+		}
+		lastAccessTime[s][t1.String()] = now
+	case "random":
+		// Do nothing
+	case "fifo":
+		fallthrough
+	default:
+		if createTime[s] == nil {
+			createTime[s] = make(map[string]TimeRecord)
+		}
+		createTime[s][t1.String()] = now
 	}
-	evict(Sp, s, CreateTuple(dataFieldsOf(t)...))
 }
+
+func afterGet(t1 Tuple, Sp Replispace, s Space) {
+	replicaCounter[s] -= 1
+	switch Sp.ReplacementPolicy {
+	case "lru":
+		delete(lastAccessTime[s], t1.String())
+	case "random":
+		// Do nothing
+	case "fifo":
+		fallthrough
+	default:
+		delete(createTime[s], t1.String())
+	}
+}
+
+func afterQuery(t1 Tuple, Sp Replispace, s Space) {
+	switch Sp.ReplacementPolicy {
+	case "lru":
+		lastAccessTime[s][t1.String()] = TimeRecord{tuple:t1, time:time.Now()}
+	case "random":
+		// Do nothing
+	case "fifo":
+		fallthrough
+	default:
+		// Do nothing
+	}
+}
+//~~~~~~~~
 
 
 //~~~~~~~~
@@ -129,7 +165,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 	// create tuple t' = {t,S}
 	var data []interface{}
 	data = append(data, t.Fields...)
-	data = append(data, time.Now().UnixNano())
+	// data = append(data, time.Now().UnixNano())
 	data = append(data, S)
 	var t1 Tuple = CreateTuple(data...)
 
@@ -138,40 +174,20 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 
 	// add t' to each space in S
 	for i := 0; i < len(S); i++ {
-		if Sp.ReplLimit > 0 && (replicaCounter[S[i]]+1) > Sp.ReplLimit {
-			switch Sp.ReplacementPolicy {
-			case "lru":
-				EvictLRU(Sp, S[i])
-			case "random":
-				EvictRandom(Sp, S[i])
-			case "fifo":
-				fallthrough
-			default:
-				EvictFIFO(Sp, S[i])
-			}
+		if Sp.ReplLimit > 0 && (replicaCounter[*Sp.Sp[S[i]]]) == Sp.ReplLimit {
+			evictTuple(Sp, S[i])
 		}
 		Sp.Sp[S[i]].Put(t1.Fields...)
+		afterPut(t1, Sp, *Sp.Sp[S[i]], now)
 		wcnt+=1
-		replicaCounter[S[i]] += 1
 		updateReplicaMax()
-		// fmt.Println(">>>",
-		// 	"S[", i, "]:", replicaCounter[S[i]], 
-		// 	"tot: ", GetReplicaCount(),
-		// 	"max: ", GetReplicaMax())
-		if createTime[*Sp.Sp[S[i]]] == nil {
-			createTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
-		}
-		if lastAccessTime[*Sp.Sp[S[i]]] == nil {
-			lastAccessTime[*Sp.Sp[S[i]]] = make(map[string]TimeRecord)
-		}
-
-		createTime[*Sp.Sp[S[i]]][t1.String()] = now
-		lastAccessTime[*Sp.Sp[S[i]]][t1.String()] = now
 	}
 
 	Sp.mux.Unlock()
 	return CreateTuple(t1)
 }
+
+
 
 //~~~~~~~~ NOT TESTED
 // Query a specific space for tuples matching the given pattern
@@ -209,11 +225,11 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	Sp.mux.Lock()
 
 	// create template p' = {t,S}
-	var createTime int64 // <--- extra field to match the creation time
 	var y []string // <--- extra field to match the space list S
 	var data []interface{}
 	data = append(data, p.Fields...)
-	data = append(data, &createTime)
+	// var createTime int64 // <--- extra field to match the creation time
+	// data = append(data, &createTime)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
 
@@ -223,8 +239,8 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 	if e == nil {
 		// no error: return the matching tuple without the last field
 		var u = CreateTuple(dataFieldsOf(t1)...)
-		lastAccessTime[s][t1.String()] = TimeRecord{tuple:t1, time:time.Now()}
-
+		afterQuery(t1, Sp, s)
+		
 		Sp.mux.Unlock()
 		return u
 	}
@@ -237,10 +253,10 @@ func QueryP(p Tuple, Sp Replispace, s Space) Tuple {
 func unsafeGetP(p Tuple, Sp Replispace, s Space) Tuple {
 	// create template p' = {t,S}
 	var y []string // <--- extra field to match the space list S
-	var createTimestamp int64 // <--- extra field to match the creation time
 	var data []interface{}
 	data = append(data, p.Fields...)
-	data = append(data, &createTimestamp)
+	// var createTimestamp int64 // <--- extra field to match the creation time
+	// data = append(data, &createTimestamp)
 	data = append(data, &y)
 	var p1 Tuple = CreateTuple(data...)
 
@@ -258,12 +274,11 @@ func unsafeGetP(p Tuple, Sp Replispace, s Space) Tuple {
 		// for each space in the set S of space identifiers
 		for s, space := range v {
 			// remove the tuple from the relevant spaces
-			delete(createTime[*Sp.Sp[space]], t1.String())
-			delete(lastAccessTime[*Sp.Sp[space]], t1.String())
-			u, e1 := Sp.Sp[v[s]].GetP(p1.Fields...)
-
+			u, e1 := Sp.Sp[space].GetP(p1.Fields...)
+			
 			if e1 == nil {
-				replicaCounter[v[s]] -= 1
+				afterGet(t1, Sp, *Sp.Sp[space])
+				
 				// fmt.Println(">>>",
 				// 		v[s], ":", replicaCounter[v[s]], 
 				// 		"tot: ", GetReplicaCount(),
