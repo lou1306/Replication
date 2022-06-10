@@ -205,7 +205,6 @@ func rawPutReplica(t Tuple, Sp Reactispace, replSpace string) {
 //~~~~~~~~ NOT TESTED
 // Query a specific space for tuples matching the given pattern
 // Blocks if the tuple is not found
-/*
 func Query(p Tuple, Sp Reactispace, s Space) Tuple {
     Sp.mux.Lock()
 
@@ -229,7 +228,6 @@ func Query(p Tuple, Sp Reactispace, s Space) Tuple {
     Sp.mux.Unlock()
     return CreateTuple()
 }
-*/
 
 //~~~~~~~~
 // Query a specific space for tuples matching the given pattern
@@ -305,36 +303,90 @@ func unsafeGetP(p Tuple, Sp Reactispace, s Space) Tuple {
 	//  search the tuple from space s
 	t1, e := s.QueryP(p1.Fields...)
 	var u Tuple = CreateTuple()
+	var v []string = make([]string, 0)
 
 	if e == nil {
 		// extract the list of all spaces
-		var S = (t1.Fields[len(t1.Fields)-1])
+		S := (t1.Fields[len(t1.Fields)-1])
 		u = CreateTuple(dataFieldsOf(t1)...)
-
-		// transform the interface type of spaces into the string type
-		var v []string
 		v = S.([]string)
-
-		// for each space in the set S of space identifiers
-		for i, space := range v {
-			// remove the tuple from the relevant spaces
-			delete(createTime[*Sp.Sp[space]], t1.String())
-			delete(lastAccessTime[*Sp.Sp[space]], t1.String())
-			_, e1 := Sp.Sp[v[i]].GetP(p1.Fields...)
-
-			if e1 == nil && i != 0 {
-				copiedTuples -= 1
-				// 	u = CreateTuple(dataFieldsOf(tup)...)
-				// 	// replicaCounter[v[s]] -= 1
-				// 	// fmt.Println(">>>",
-				// 	//      v[s], ":", replicaCounter[v[s]],
-				// 	//      "tot: ", GetReplicaCount(),
-				// 	//      "max: ", GetReplicaMax())
+	} else {
+		// Remote lookup
+		for _, remote := range Sp.Sp {
+		t2, err := remote.QueryP(t1.Fields...)
+			if err == nil {
+				S := (t2.Fields[len(t2.Fields)-1])
+				u = CreateTuple(dataFieldsOf(t2)...)
+				v = S.([]string)
+				break
 			}
 		}
 	}
+
+	// for each space in the set S of space identifiers
+	for i, space := range v {
+		// remove the tuple from the relevant spaces
+		delete(createTime[*Sp.Sp[space]], t1.String())
+		delete(lastAccessTime[*Sp.Sp[space]], t1.String())
+		_, e1 := Sp.Sp[v[i]].GetP(p1.Fields...)
+
+		if e1 == nil && i != 0 {
+			copiedTuples -= 1
+		}
+	}
+	
 	return u
 }
+
+func unsafeGet(p Tuple, Sp Reactispace, s Space) Tuple {
+	// create template p' = {t,S}
+	var y []string            // <--- extra field to match the space list S
+	var createTimestamp int64 // <--- extra field to match the creation time
+	var data []interface{}
+	data = append(data, p.Fields...)
+	data = append(data, &createTimestamp)
+	data = append(data, &y)
+	var p1 Tuple = CreateTuple(data...)
+
+	//  search the tuple from space s (blocking)
+	t1, e := s.Query(p1.Fields...)
+	var u Tuple = CreateTuple()
+	var v []string = make([]string, 0)
+
+	if e == nil {
+		// extract the list of all spaces
+		S := (t1.Fields[len(t1.Fields)-1])
+		u = CreateTuple(dataFieldsOf(t1)...)
+		v = S.([]string)
+	} else {
+		// Remote lookup
+		for _, remote := range Sp.Sp {
+		t2, err := remote.QueryP(p1.Fields...)
+			if err == nil {
+				S := (t2.Fields[len(t2.Fields)-1])
+				u = CreateTuple(dataFieldsOf(t2)...)
+				v = S.([]string)
+				t1 = t2
+				break
+			}
+		}
+	}
+
+	// for each space in the set S of space identifiers
+	for i, space := range v {
+		// remove the tuple from the relevant spaces
+		delete(createTime[*Sp.Sp[space]], t1.String())
+		delete(lastAccessTime[*Sp.Sp[space]], t1.String())
+		_, e1 := Sp.Sp[v[i]].GetP(t1.Fields...)
+
+		if e1 == nil && i != 0 {
+			copiedTuples -= 1
+		}
+	}
+	
+	return u
+}
+
 
 //~~~~~~~~
 // Remove a tuple from space s, and
@@ -347,6 +399,13 @@ func GetP(p Tuple, Sp Reactispace, s Space) Tuple {
 	result := unsafeGetP(p, Sp, s)
 	return result
 }
+
+func Get(p Tuple, Sp Reactispace, s Space) Tuple {
+	Sp.mux.Lock()
+	result := unsafeGet(p, Sp, s)
+	return result
+}
+
 
 func Getwcount() int {
 	return wcnt
