@@ -206,7 +206,7 @@ func rawPutReplica(t Tuple, Sp Reactispace, replSpace string) {
 // Query a specific space for tuples matching the given pattern
 // Blocks if the tuple is not found
 func Query(p Tuple, Sp Reactispace, s Space) Tuple {
-    Sp.mux.Lock()
+    //Sp.mux.Lock()
 
     // create template p' = {t,S}
     var y []string // <--- extra field to match the space list S

@@ -193,7 +193,7 @@ func Put(t Tuple, Sp Replispace, S []string) Tuple {
 // Query a specific space for tuples matching the given pattern
 // Blocks if the tuple is not found
 func Query(p Tuple, Sp Replispace, s Space) Tuple {
-	Sp.mux.Lock()
+	// Sp.mux.Lock()
 
 	// create template p' = {t,S}
 	var y []string // <--- extra field to match the space list S
@@ -208,11 +208,11 @@ func Query(p Tuple, Sp Replispace, s Space) Tuple {
 	if e == nil {
 		// no error: return the matching tuple without the last field
 		var t2 = CreateTuple(t1.Fields[:len(t1.Fields)-1]...)
-		Sp.mux.Unlock()
+		// Sp.mux.Unlock()
 		return t2
 	}
 	// The empry tuple is only returned in case of errors
-	Sp.mux.Unlock()
+	// Sp.mux.Unlock()
 	return CreateTuple()
 }
 
@@ -356,8 +356,9 @@ func unsafeGet(p Tuple, Sp Replispace, s Space) Tuple {
 }
 
 func Get(p Tuple, Sp Replispace, s Space) Tuple {
+	t := Query(p, Sp, s)
 	Sp.mux.Lock()
-	result := unsafeGet(p, Sp, s)
+	result := unsafeGet(t, Sp, s)
 	Sp.mux.Unlock()
 	return result
 }
