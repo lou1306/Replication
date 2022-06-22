@@ -225,7 +225,7 @@ func Query(p Tuple, Sp Reactispace, s Space) Tuple {
         return t2
     }
     // blocks until the tuple is found
-    Sp.mux.Unlock()
+    //Sp.mux.Unlock()
     return CreateTuple()
 }
 
